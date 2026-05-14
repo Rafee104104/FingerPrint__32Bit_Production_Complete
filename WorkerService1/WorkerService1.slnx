@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="E:/Github Projects/WorkerService1/WorkerService1/WorkerService1.csproj">
+    <Platform Solution="*|x86" Project="x86" />
+    <Build Solution="Release|x86" Project="false" />
+  </Project>
+</Solution>
