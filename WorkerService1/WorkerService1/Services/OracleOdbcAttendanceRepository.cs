@@ -17,42 +17,27 @@ public sealed class OracleOdbcAttendanceRepository(
     IOptions<OracleOptions> options,
     ILogger<OracleOdbcAttendanceRepository> logger) : IAttendanceRepository
 {
-    // MERGE avoids duplicate insert for same CARD_NO + CHECKTIME.
+    // MERGE avoids duplicate insert for same USERID + CHECKTIME.
     private const string InsertSql = """
-    MERGE INTO BS.CARD_ENTRY dst
+    MERGE INTO BS.ATT dst
     USING (
         SELECT
-            :D_CARD    AS D_CARD,
-            :T_CARD    AS T_CARD,
-            :CARD_NO   AS CARD_NO,
-            :ENTY_DATE AS ENTY_DATE,
-            :CHECKTIME AS CHECKTIME,
-            :MIN1      AS MIN1,
-            :MAX1      AS MAX1
+            :USERID    AS USERID,
+            :CHECKTIME AS CHECKTIME
         FROM DUAL
     ) src
     ON (
-        dst.CARD_NO = src.CARD_NO
+        dst.USERID = src.USERID
         AND dst.CHECKTIME = src.CHECKTIME
     )
     WHEN NOT MATCHED THEN
         INSERT (
-            D_CARD,
-            T_CARD,
-            CARD_NO,
-            ENTY_DATE,
-            CHECKTIME,
-            MIN1,
-            MAX1
+            USERID,
+            CHECKTIME
         )
         VALUES (
-            src.D_CARD,
-            src.T_CARD,
-            src.CARD_NO,
-            src.ENTY_DATE,
-            src.CHECKTIME,
-            src.MIN1,
-            src.MAX1
+            src.USERID,
+            src.CHECKTIME
         )
     """;
 
@@ -129,7 +114,7 @@ public sealed class OracleOdbcAttendanceRepository(
             }
             catch (Exception rollbackEx)
             {
-                logger.LogWarning(rollbackEx, "Failed to roll back BS.CARD_ENTRY transaction.");
+                logger.LogWarning(rollbackEx, "Failed to roll back transaction.");
             }
 
             throw;
@@ -155,13 +140,8 @@ public sealed class OracleOdbcAttendanceRepository(
             command.CommandTimeout = _commandTimeoutSeconds;
         }
 
-        AddVarcharArray(command, "D_CARD", logs, offset, count, 50, static log => log.DCard);
-        AddVarcharArray(command, "T_CARD", logs, offset, count, 50, static log => log.TCard);
-        AddNumberArray(command, "CARD_NO", logs, offset, count);
-        AddDateArray(command, "ENTY_DATE", logs, offset, count);
-        AddVarcharArray(command, "CHECKTIME", logs, offset, count, 50, static log => log.CheckTime);
-        AddVarcharArray(command, "MIN1", logs, offset, count, 12, static log => log.Min1);
-        AddVarcharArray(command, "MAX1", logs, offset, count, 15, static log => log.Max1);
+        AddNumberArray(command, "USERID", logs, offset, count);
+        AddDateArray(command, "CHECKTIME", logs, offset, count);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -175,7 +155,7 @@ public sealed class OracleOdbcAttendanceRepository(
         {
             foreach (var log in logs)
             {
-                var key = new AttendanceLogKey(log.CardNo, log.CheckTime);
+                var key = new AttendanceLogKey(log.UserId, log.CheckTime);
                 if (_processedLogKeys.Contains(key) || !pendingLogKeys.Add(key))
                 {
                     continue;
@@ -199,7 +179,7 @@ public sealed class OracleOdbcAttendanceRepository(
         {
             foreach (var log in logs)
             {
-                var key = new AttendanceLogKey(log.CardNo, log.CheckTime);
+                var key = new AttendanceLogKey(log.UserId, log.CheckTime);
                 if (!_processedLogKeys.Add(key))
                 {
                     continue;
@@ -222,40 +202,6 @@ public sealed class OracleOdbcAttendanceRepository(
             : options.ConnectionString.Trim();
     }
 
-    private static void AddVarcharArray(
-        OracleCommand command,
-        string name,
-        IReadOnlyList<AttendanceLog> logs,
-        int offset,
-        int count,
-        int size,
-        Func<AttendanceLog, string?> selector)
-    {
-        var values = new string[count];
-        OracleParameterStatus[]? statuses = null;
-
-        for (var i = 0; i < count; i++)
-        {
-            var value = selector(logs[offset + i])?.Trim();
-            if (string.IsNullOrEmpty(value))
-            {
-                values[i] = string.Empty;
-                statuses ??= CreateSuccessStatuses(count);
-                statuses[i] = OracleParameterStatus.NullInsert;
-                continue;
-            }
-
-            values[i] = value;
-        }
-
-        var parameter = command.Parameters.Add(name, OracleDbType.Varchar2, size);
-        parameter.Value = values;
-        if (statuses is not null)
-        {
-            parameter.ArrayBindStatus = statuses;
-        }
-    }
-
     private static void AddNumberArray(
         OracleCommand command,
         string name,
@@ -266,7 +212,7 @@ public sealed class OracleOdbcAttendanceRepository(
         var values = new decimal[count];
         for (var i = 0; i < count; i++)
         {
-            values[i] = logs[offset + i].CardNo;
+            values[i] = logs[offset + i].UserId;
         }
 
         var parameter = command.Parameters.Add(name, OracleDbType.Decimal);
@@ -283,19 +229,12 @@ public sealed class OracleOdbcAttendanceRepository(
         var values = new DateTime[count];
         for (var i = 0; i < count; i++)
         {
-            values[i] = logs[offset + i].EntyDate.Date;
+            values[i] = logs[offset + i].CheckTime;
         }
 
         var parameter = command.Parameters.Add(name, OracleDbType.Date);
         parameter.Value = values;
     }
 
-    private static OracleParameterStatus[] CreateSuccessStatuses(int count)
-    {
-        var statuses = new OracleParameterStatus[count];
-        Array.Fill(statuses, OracleParameterStatus.Success);
-        return statuses;
-    }
-
-    private readonly record struct AttendanceLogKey(long CardNo, string CheckTime);
+    private readonly record struct AttendanceLogKey(long UserId, DateTime CheckTime);
 }

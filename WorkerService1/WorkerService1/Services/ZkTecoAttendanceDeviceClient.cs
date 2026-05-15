@@ -18,10 +18,18 @@ public sealed class ZkTecoAttendanceDeviceClient(
     IOptions<DeviceOptions> options,
     ILogger<ZkTecoAttendanceDeviceClient> logger) : IAttendanceDeviceClient
 {
-    private const string ProgId = "zkemkeeper.ZKEM";
+    private static readonly string[] ProgIds =
+    [
+        "zkemkeeper.ZKEM.1",
+        "zkemkeeper.ZKEM",
+        "zkemkeeper.CZKEMClass",
+        "zkemkeeper.CZKEM"
+    ];
+
     private const string RegSvr32Path = @"C:\Windows\SysWOW64\regsvr32.exe";
     private const int DefaultLogCapacity = 1_024;
     private const int ProgressLogInterval = 10_000;
+    private const long MaxUserId = 9_999_999_999;
 
     private readonly DeviceOptions _options = Validate(options.Value);
     private readonly SemaphoreSlim _readLock = new(1, 1);
@@ -138,12 +146,7 @@ public sealed class ZkTecoAttendanceDeviceClient(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        Type comType = Type.GetTypeFromProgID(ProgId, throwOnError: false)
-            ?? throw new InvalidOperationException(GetRegistrationErrorMessage());
-
-        object deviceObject = Activator.CreateInstance(comType)
-            ?? throw new InvalidOperationException("Failed to create the ZKTeco ZKEM COM object.");
-
+        object deviceObject = CreateZkemObject();
         dynamic device = deviceObject;
         var connected = false;
 
@@ -216,6 +219,40 @@ public sealed class ZkTecoAttendanceDeviceClient(
 
             ReleaseComObject(deviceObject);
         }
+    }
+
+    private object CreateZkemObject()
+    {
+        foreach (string progId in ProgIds)
+        {
+            try
+            {
+                Type? comType = Type.GetTypeFromProgID(progId, throwOnError: false);
+                if (comType is null)
+                {
+                    continue;
+                }
+
+                object? deviceObject = Activator.CreateInstance(comType);
+                if (deviceObject is not null)
+                {
+                    logger.LogInformation("Created ZKTeco COM object using ProgID {ProgId}.", progId);
+                    return deviceObject;
+                }
+
+                logger.LogDebug("ZKTeco COM ProgID {ProgId} resolved, but object creation returned null.", progId);
+            }
+            catch (Exception ex) when (
+                ex is COMException ||
+                ex is TargetInvocationException ||
+                ex is TypeLoadException ||
+                ex is UnauthorizedAccessException)
+            {
+                logger.LogDebug(ex, "Could not create ZKTeco COM object using ProgID {ProgId}. Trying next ProgID.", progId);
+            }
+        }
+
+        throw new InvalidOperationException(GetRegistrationErrorMessage());
     }
 
     private bool TryReadSsrLogs(object deviceObject, CancellationToken cancellationToken, out IReadOnlyList<AttendanceLog> logs)
@@ -362,7 +399,7 @@ public sealed class ZkTecoAttendanceDeviceClient(
     }
 
     private bool TryCreateLog(
-        string? rawCardNo,
+        string? rawUserId,
         int year,
         int month,
         int day,
@@ -373,11 +410,11 @@ public sealed class ZkTecoAttendanceDeviceClient(
     {
         log = default!;
 
-        if (!TryNormalizeCardNo(rawCardNo, out var cardNo))
+        if (!TryNormalizeUserId(rawUserId, out var userId))
         {
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("Skipping attendance log with invalid CARD_NO value: {RawCardNo}.", rawCardNo);
+                logger.LogDebug("Skipping attendance log with invalid identifier.");
             }
 
             return false;
@@ -386,23 +423,11 @@ public sealed class ZkTecoAttendanceDeviceClient(
         try
         {
             var checkDateTime = new DateTime(year, month, day, hour, minute, second);
-            var dCard = FormatDate(checkDateTime);
-            var tCard = FormatTime(checkDateTime);
-            var checkTime = string.Concat(dCard, tCard);
-
-            // Current rule: before 12:00:00 = MIN1, 12:00:00 or later = MAX1.
-            // If your office rule is different, change only this line.
-            var isMinPunch = checkDateTime.TimeOfDay < TimeSpan.FromHours(12);
 
             log = new AttendanceLog
             {
-                DCard = dCard,
-                TCard = tCard,
-                CardNo = cardNo,
-                EntyDate = checkDateTime.Date,
-                CheckTime = checkTime,
-                Min1 = isMinPunch ? tCard : null,
-                Max1 = isMinPunch ? null : tCard
+                UserId = userId,
+                CheckTime = checkDateTime
             };
 
             return true;
@@ -413,52 +438,11 @@ public sealed class ZkTecoAttendanceDeviceClient(
             {
                 logger.LogDebug(
                     ex,
-                    "Skipping invalid attendance timestamp from device for CARD_NO {CardNo}: {Year}-{Month}-{Day} {Hour}:{Minute}:{Second}.",
-                    cardNo,
-                    year,
-                    month,
-                    day,
-                    hour,
-                    minute,
-                    second);
+                    "Skipping attendance log with invalid CHECKTIME value.");
             }
 
             return false;
         }
-    }
-
-    private static string FormatDate(DateTime value)
-    {
-        return string.Create(8, value, static (destination, dateTime) =>
-        {
-            WriteTwoDigits(destination, 0, dateTime.Day);
-            WriteTwoDigits(destination, 2, dateTime.Month);
-            WriteFourDigits(destination, 4, dateTime.Year);
-        });
-    }
-
-    private static string FormatTime(DateTime value)
-    {
-        return string.Create(6, value, static (destination, dateTime) =>
-        {
-            WriteTwoDigits(destination, 0, dateTime.Hour);
-            WriteTwoDigits(destination, 2, dateTime.Minute);
-            WriteTwoDigits(destination, 4, dateTime.Second);
-        });
-    }
-
-    private static void WriteTwoDigits(Span<char> destination, int offset, int value)
-    {
-        destination[offset] = (char)('0' + (value / 10));
-        destination[offset + 1] = (char)('0' + (value % 10));
-    }
-
-    private static void WriteFourDigits(Span<char> destination, int offset, int value)
-    {
-        destination[offset] = (char)('0' + (value / 1_000));
-        destination[offset + 1] = (char)('0' + (value / 100 % 10));
-        destination[offset + 2] = (char)('0' + (value / 10 % 10));
-        destination[offset + 3] = (char)('0' + (value % 10));
     }
 
     private string GetLastErrorMessage(object deviceObject)
@@ -640,7 +624,7 @@ public sealed class ZkTecoAttendanceDeviceClient(
             ? localSdkPath
             : @"C:\Windows\SysWOW64\zkemkeeper.dll";
 
-        return $"ZKTeco COM SDK is not registered for this process (ProcessArchitecture={RuntimeInformation.ProcessArchitecture}). Register the 32-bit zkemkeeper.dll from an elevated PowerShell/CMD with: \"{RegSvr32Path}\" \"{sdkPath}\".";
+        return $"ZKTeco COM SDK is not registered for this process (ProcessArchitecture={RuntimeInformation.ProcessArchitecture}). Tried ProgIDs: {string.Join(", ", ProgIds)}. Register the 32-bit zkemkeeper.dll from an elevated PowerShell/CMD with: \"{RegSvr32Path}\" \"{sdkPath}\".";
     }
 
     private static int ConvertToInt(object? value)
@@ -655,16 +639,24 @@ public sealed class ZkTecoAttendanceDeviceClient(
         };
     }
 
-    private static bool TryNormalizeCardNo(string? rawCardNo, out long cardNo)
+    private static bool TryNormalizeUserId(string? rawUserId, out long userId)
     {
-        cardNo = 0;
+        userId = 0;
 
-        if (string.IsNullOrWhiteSpace(rawCardNo))
+        if (string.IsNullOrWhiteSpace(rawUserId))
         {
             return false;
         }
 
-        var normalized = rawCardNo.Trim();
-        return long.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out cardNo);
+        var normalized = rawUserId.Trim();
+        if (!long.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedUserId) ||
+            parsedUserId < 0 ||
+            parsedUserId > MaxUserId)
+        {
+            return false;
+        }
+
+        userId = parsedUserId;
+        return true;
     }
 }

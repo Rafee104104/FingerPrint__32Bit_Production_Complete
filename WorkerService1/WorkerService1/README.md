@@ -16,7 +16,7 @@ Windows-only x86 .NET 10 Worker Service that reads attendance logs from a ZKTeco
    Test-NetConnection localhost -Port 1522
    ```
 
-3. Create `BS.CARD_ENTRY` and `BS.UK_CARD_ENTRY_CARD_TIME` using `database.sql`.
+3. Create `BS.ATT` using `database.sql`.
 
 4. Configure `WorkerService1\appsettings.json` or set machine-level environment variables. The service requires:
 
@@ -111,6 +111,6 @@ C:\Windows\SysWOW64\regsvr32.exe "C:\Services\ZkK40OracleSync\zkemkeeper.dll"
 
 - The executable and Windows Service name are `ZkK40OracleSync`.
 - The service never clears attendance logs from the K40 and does not delete machine data.
-- Duplicate records are prevented with the `BS.UK_CARD_ENTRY_CARD_TIME` unique index on `(CARD_NO, CHECKTIME)`.
+- Duplicate records are skipped by matching `BS.ATT.USERID` (`NUMBER(10)`) and `BS.ATT.CHECKTIME`.
 - Inserts use Oracle array binding in batches, and the worker caches processed punch keys in memory to avoid resending the same device history every cycle.
 - This project runs as x86 because the configured ZKTeco COM SDK is 32-bit.

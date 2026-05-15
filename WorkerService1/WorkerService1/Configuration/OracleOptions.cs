@@ -4,7 +4,7 @@ public sealed class OracleOptions
 {
     public const string SectionName = "Oracle";
 
-    public string ConnectionString { get; set; } = "Data Source=(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME=ORCLBS)));User Id=BS;Password=beta8090;";
+    public string ConnectionString { get; set; } = "Data Source=(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=Rafee)(PORT=1521)))(CONNECT_DATA=(SERVICE_NAME=ORCL)));User Id=BS;Password=bs;";
 
     public int BatchSize { get; set; } = 500;
 
