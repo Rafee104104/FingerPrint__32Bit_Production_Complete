@@ -7,13 +7,13 @@ Windows-only x86 .NET 10 Worker Service that reads attendance logs from a ZKTeco
 1. Confirm the device network connection:
 
    ```powershell
-   Test-NetConnection 192.168.88.101 -Port 4370
+   Test-NetConnection IP_address -Port port_id
    ```
 
 2. Confirm the Oracle listener connection:
 
    ```powershell
-   Test-NetConnection localhost -Port 1522
+   Test-NetConnection hostname -Port port_id
    ```
 
 3. Create `BS.ATT` using `database.sql`.
