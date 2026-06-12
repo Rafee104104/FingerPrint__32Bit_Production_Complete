@@ -1,0 +1,16 @@
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\FingerPrintForm.exe
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Assets\Icons\connect.png
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Assets\Icons\disconnect.png
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Assets\Icons\export-csv.png
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Assets\Icons\insert-db.png
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Assets\Icons\load-attendance.png
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Assets\Icons\load-users.png
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\FingerPrintForm.dll
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\FingerPrintForm.deps.json
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\FingerPrintForm.runtimeconfig.json
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\FingerPrintForm.pdb
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\Oracle.ManagedDataAccess.dll
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\System.DirectoryServices.Protocols.dll
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\runtimes\linux\lib\net8.0\System.DirectoryServices.Protocols.dll
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\runtimes\osx\lib\net8.0\System.DirectoryServices.Protocols.dll
+D:\Fingerprint_Form_Publish_2Col_4ProgID\FingerPrintForm_Auto\runtimes\win\lib\net8.0\System.DirectoryServices.Protocols.dll
